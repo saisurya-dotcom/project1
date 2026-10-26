@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CSC & CSD Host</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--tx:#1b1f2a;--mu:#6b7280;--ac:#4f46e5;--ac2:#e0e7ff;--bd:#e5e7eb;--ok:#16a34a;--bad:#dc2626;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1117;--card:#181b24;--tx:#eceef4;--mu:#9aa1b2;--ac:#818cf8;--ac2:#262a45;--bd:#2a2e3b;--ok:#4ade80;--bad:#f87171}}
+:root[data-theme="dark"]{--bg:#0f1117;--card:#181b24;--tx:#eceef4;--mu:#9aa1b2;--ac:#818cf8;--ac2:#262a45;--bd:#2a2e3b;--ok:#4ade80;--bad:#f87171}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding-bottom:76px}
+main{max-width:560px;margin:0 auto;padding:16px}h1{font-size:22px;margin:4px 0 4px}h2{font-size:14px;margin:16px 0 8px;color:var(--mu);text-transform:uppercase;letter-spacing:.04em}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:10px}.g{flex:1;min-width:0;word-break:break-word}.mu{color:var(--mu);font-size:13px}
+input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);font:inherit;margin-bottom:8px}
+button{font:inherit;border:0;border-radius:10px;padding:10px 14px;background:var(--ac);color:#fff;font-weight:600}button.x{background:none;color:var(--mu);padding:4px 8px}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--bd);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px))}
+nav button{flex:1;background:none;color:var(--mu);font-size:11px;padding:6px 0;font-weight:500}nav button.on{color:var(--ac);font-weight:700}nav span{display:block;font-size:19px}
+.st{font-size:13px;margin:6px 0}.ok{color:var(--ok)}.bad{color:var(--bad)}
+</style></head><body>
+<main id="app"></main><nav id="nav"></nav>
+<script>
+const $=s=>document.querySelector(s),get=id=>$("#"+id).value.trim();
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const TABS=[["news","📢","Posts"],["events","📅","Dates"],["notes","📝","Notes"],["files","📎","Links"]];
+const srv=()=>{try{return localStorage.getItem("srv")||""}catch(e){return ""}};
+let H={events:[],notes:[],files:[],news:[]},authed=false,tab="news",loaded=false,msg="",pw=sessionStorage.getItem("hp")||"";
+function setMsg(t,ok){msg=`<div class="st ${ok?"ok":"bad"}">${esc(t)}</div>`;draw()}
+async function load(){const r=await fetch(srv()+"/api/data",{cache:"no-store"});H=Object.assign({events:[],notes:[],files:[],news:[]},await r.json());loaded=true}
+async function save(){try{const r=await fetch(srv()+"/api/data",{method:"POST",headers:{"Content-Type":"application/json","X-Host-Password":pw},body:JSON.stringify(H)});
+ if(r.status==401){authed=false;draw();return setMsg("Session expired, sign in again")}if(!r.ok)throw new Error("error "+r.status);setMsg("Saved ✓ students will see it within 10 seconds",true)}catch(e){setMsg("Couldn’t save: "+e.message)}}
+function add(k,o,ids){if(!loaded)return setMsg("Still loading, try again");if(ids.some(i=>!o[i]))return setMsg("Please fill all the fields");H[k].push(o);save()}
+function del(k,i){if(loaded&&confirm("Delete this?")){H[k].splice(i,1);save()}}
+function bulk(){if(!loaded)return setMsg("Still loading, try again");let n=0;get("hb").split("\n").forEach(l=>{const p=l.split("|").map(x=>x.trim());if(/^\d{4}-\d{2}-\d{2}$/.test(p[0])&&p[1]){H.events.push({date:p[0],title:p[1],type:p[2]||"Event"});n++}});n?save():setMsg("Use lines like: 2026-11-20 | Maths CAT-1 | Exam")}
+function addLink(){const u=get("fu");if(!/^https:\/\//.test(u))return setMsg("Paste a full https:// link");add("files",{n:get("fn")||"File",url:u},["url"])}
+const del2=(k,i)=>`<button class="x" onclick="del('${k}',${i})">✕</button>`;
+const V={
+news:()=>`<h1>Posts &amp; reminders</h1><p class="mu">Shown on every student’s Home screen.</p><div class="card"><textarea id="nt" rows="2" placeholder="e.g. CAT-1 syllabus updated"></textarea><input id="nd" type="date"><button onclick="add('news',{t:get('nt'),d:get('nd')},['t'])">Post</button></div>${[...H.news].map((n,i)=>({n,i})).reverse().map(({n,i})=>`<div class="card row"><div class="g">${esc(n.t)}<div class="mu">${esc(n.d||"")}</div></div>${del2("news",i)}</div>`).join("")}`,
+events:()=>`<h1>Academic calendar</h1><div class="card"><textarea id="hb" rows="5" placeholder="One per line: 2026-11-20 | Maths CAT-1 | Exam"></textarea><div class="mu" style="margin-bottom:8px">Types: Exam, Holiday, Event, Schedule update</div><button onclick="bulk()">Add dates</button></div>${H.events.map((e,i)=>({e,i})).sort((a,b)=>a.e.date<b.e.date?-1:1).map(({e,i})=>`<div class="card row"><div class="g"><b>${esc(e.title)}</b><div class="mu">${esc(e.date)} · ${esc(e.type)}</div></div>${del2("events",i)}</div>`).join("")||'<p class="mu">No dates yet.</p>'}`,
+notes:()=>`<h1>Notes &amp; syllabus</h1><div class="card"><input id="ns" placeholder="Subject"><textarea id="nb" rows="4" placeholder="Note or syllabus"></textarea><button onclick="add('notes',{s:get('ns'),t:get('nb')},['s','t'])">Share</button></div>${H.notes.map((n,i)=>`<div class="card"><div class="row"><b class="g">${esc(n.s)}</b>${del2("notes",i)}</div><div style="white-space:pre-wrap">${esc(n.t)}</div></div>`).join("")}`,
+files:()=>`<h1>File links</h1><p class="mu">Upload to Google Drive, set “Anyone with the link”, paste it here.</p><div class="card"><input id="fn" placeholder="Title (e.g. Unit 2 notes)"><input id="fu" type="url" placeholder="https://drive.google.com/…"><button onclick="addLink()">Add link</button></div>${H.files.map((f,i)=>`<div class="card row"><div class="g">📎 <a href="${esc(f.url)}" target="_blank" rel="noopener" style="color:var(--ac)">${esc(f.n)}</a></div>${del2("files",i)}</div>`).join("")}`,
+login:()=>`<h1>CSC &amp; CSD Host</h1><p class="mu">Enter the host password.</p><div class="card"><input id="sv" placeholder="Server address (empty if opened in browser)" value="${esc(srv())}"><input id="lp" type="password" placeholder="Host password" onkeydown="if(event.key==='Enter')login()"><button onclick="login()">Sign in</button></div>`
+};
+function draw(){
+ if(!authed){$("#app").innerHTML=V.login()+msg;$("#nav").innerHTML="";return}
+ $("#app").innerHTML=msg+V[tab]()+`<p style="text-align:center"><button class="x" onclick="logout()">Sign out</button></p>`;
+ $("#nav").innerHTML=TABS.map(t=>`<button class="${t[0]==tab?"on":""}" onclick="go('${t[0]}')"><span>${t[1]}</span>${t[2]}</button>`).join("");
+}
+function go(t){tab=t;msg="";draw();scrollTo(0,0)}
+async function login(){const p=get("lp");try{localStorage.setItem("srv",get("sv").replace(/\/+$/,""))}catch(e){}try{const r=await fetch(srv()+"/api/login",{method:"POST",headers:{"X-Host-Password":p}});if(!r.ok)return setMsg("Wrong password");pw=p;sessionStorage.setItem("hp",p);await load();authed=true;msg="";draw()}catch(e){setMsg("Can’t reach the server")}}
+function logout(){pw="";authed=false;sessionStorage.removeItem("hp");msg="";draw()}
+if(pw){fetch(srv()+"/api/login",{method:"POST",headers:{"X-Host-Password":pw}}).then(async r=>{if(r.ok){await load();authed=true}draw()}).catch(draw)}
+draw();
+</script>
+</body></html>
